@@ -1,8 +1,9 @@
-import { defineConfig } from 'vite'
+/// <reference types="vitest" />
+import { defineConfig } from "vite";
 
 export default defineConfig({
-  root: '.',
+  root: ".",
   build: {
-    outDir: 'dist',
+    outDir: "dist",
   },
-})
+});
