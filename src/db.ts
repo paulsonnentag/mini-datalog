@@ -4,89 +4,99 @@ type State = Map<Id, Map<string, any[]>>;
 
 type Rule = {
   condition: Pattern[];
-  effect: (context: Context) => void;
+  effect: (context: Context) => Promise<void> | void;
 };
-
-type EvaluationContext = "rule";
 
 class DB {
   #base: State = new Map();
   #all: State = new Map();
 
-  #evaluationContext: EvaluationContext | null = null;
+  #isEvaluatingRule = false;
   #addedFacts = 0;
   #rules: Rule[] = [];
 
-  assert(triple: Triple) {
-    const [id, attribute, value] = triple;
-
-    const isEvaluatingRule = this.#evaluationContext === "rule";
-
-    const state = isEvaluatingRule ? this.#all : this.#base;
-
-    // Get or create the map for this ID
-    if (!state.has(id)) {
-      state.set(id, new Map());
-    }
-    const entity = state.get(id)!;
-
-    // Get or create the array for this attribute
-    if (!entity.has(attribute)) {
-      entity.set(attribute, []);
-    }
-    const values = entity.get(attribute)!;
-
-    // Add the value if it's not already there
-    if (!values.includes(value)) {
-      values.push(value);
-      this.#addedFacts++;
-    }
-
-    if (!isEvaluatingRule) {
-      this.#recompute();
-    }
+  constructor(triples: Triple[] = []) {
+    this.assert(triples);
   }
 
-  retract(triple: Triple) {
-    const isEvaluatingRule = this.#evaluationContext === "rule";
-    if (isEvaluatingRule) {
+  assert(triples: Triple[]): () => void {
+    const effectivelyAsserted: Triple[] = [];
+
+    for (const triple of triples) {
+      const [id, attribute, value] = triple;
+
+      const state = this.#isEvaluatingRule ? this.#all : this.#base;
+
+      // Get or create the map for this ID
+      if (!state.has(id)) {
+        state.set(id, new Map());
+      }
+      const entity = state.get(id)!;
+
+      // Get or create the array for this attribute
+      if (!entity.has(attribute)) {
+        entity.set(attribute, []);
+      }
+      const values = entity.get(attribute)!;
+
+      // Add the value if it's not already there
+      if (!values.includes(value)) {
+        values.push(value);
+        this.#addedFacts++;
+        effectivelyAsserted.push(triple);
+      }
+    }
+
+    if (!this.#isEvaluatingRule) {
+      this.recompute();
+    }
+
+    return () => {
+      this.retract(effectivelyAsserted);
+    };
+  }
+
+  retract(triples: Triple[]) {
+    if (this.#isEvaluatingRule) {
       throw new Error("Cannot retract facts in when block");
     }
 
-    const [id, attribute, value] = triple;
+    for (const triple of triples) {
+      const [id, attribute, value] = triple;
 
-    if (!this.#base.has(id)) {
-      return;
-    }
-
-    const idMap = this.#base.get(id)!;
-    if (!idMap.has(attribute)) {
-      return;
-    }
-
-    const values = idMap.get(attribute)!;
-    const index = values.indexOf(value);
-    if (index !== -1) {
-      values.splice(index, 1);
-
-      // Remove the attribute map if it's empty
-      if (values.length === 0) {
-        idMap.delete(attribute);
+      if (!this.#base.has(id)) {
+        continue;
       }
 
-      // Remove the ID map if it's empty
-      if (idMap.size === 0) {
-        this.#base.delete(id);
+      const idMap = this.#base.get(id)!;
+      if (!idMap.has(attribute)) {
+        continue;
+      }
+
+      const values = idMap.get(attribute)!;
+      const index = values.indexOf(value);
+      if (index !== -1) {
+        values.splice(index, 1);
+
+        // Remove the attribute map if it's empty
+        if (values.length === 0) {
+          idMap.delete(attribute);
+        }
+
+        // Remove the ID map if it's empty
+        if (idMap.size === 0) {
+          this.#base.delete(id);
+        }
       }
     }
 
-    this.#recompute();
+    this.recompute();
   }
 
-  #recompute() {
+  recompute() {
     this.#all = structuredClone(this.#base);
 
-    this.#evaluationContext = "rule";
+    this.#isEvaluatingRule = true;
 
     do {
       this.#addedFacts = 0;
@@ -100,12 +110,15 @@ class DB {
       });
     } while (this.#addedFacts > 0);
 
-    this.#evaluationContext = null;
+    this.#isEvaluatingRule = false;
   }
 
-  when(condition: Pattern[], effect: (context: Context) => void) {
+  when(
+    condition: Pattern[],
+    effect: (context: Context) => Promise<void> | void
+  ) {
     this.#rules.push({ condition, effect });
-    this.#recompute();
+    this.recompute();
   }
 
   query(patterns: Pattern[]) {

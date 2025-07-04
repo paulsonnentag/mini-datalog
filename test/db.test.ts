@@ -11,11 +11,13 @@ describe("DB", () => {
   describe("assert and retract", () => {
     it("should assert triples and return them in state", () => {
       // Test assert
-      db.assert(["1", "name", "Alice"]);
-      db.assert(["1", "age", 30]);
-      db.assert(["2", "name", "Bob"]);
-      db.assert(["1", "hobby", "reading"]);
-      db.assert(["1", "hobby", "swimming"]);
+      db.assert([
+        ["1", "name", "Alice"],
+        ["1", "age", 30],
+        ["2", "name", "Bob"],
+        ["1", "hobby", "reading"],
+        ["1", "hobby", "swimming"],
+      ]);
 
       // Test state returns all triples
       const expectedState = [
@@ -32,20 +34,24 @@ describe("DB", () => {
 
     it("should retract triples and update state", () => {
       // Setup initial state
-      db.assert(["1", "name", "Alice"]);
-      db.assert(["1", "age", 30]);
-      db.assert(["2", "name", "Bob"]);
-      db.assert(["1", "hobby", "reading"]);
-      db.assert(["1", "hobby", "swimming"]);
+      db.assert([
+        ["1", "name", "Alice"],
+        ["1", "age", 30],
+        ["1", "hobby", "reading"],
+        ["1", "hobby", "swimming"],
+        ["2", "name", "Bob"],
+      ]);
 
       // Test retract
-      db.retract(["1", "age", 30]);
-      db.retract(["1", "hobby", "reading"]);
+      db.retract([
+        ["1", "age", 30],
+        ["1", "hobby", "reading"],
+      ]);
 
       const expectedAfterRetract = [
         ["1", "name", "Alice"],
-        ["2", "name", "Bob"],
         ["1", "hobby", "swimming"],
+        ["2", "name", "Bob"],
       ];
 
       expect(db.triples()).toEqual(
@@ -56,15 +62,19 @@ describe("DB", () => {
 
     it("should not add duplicate triples on assert", () => {
       // Setup initial state
-      db.assert(["1", "name", "Alice"]);
-      db.assert(["1", "age", 30]);
-      db.assert(["2", "name", "Bob"]);
-      db.assert(["1", "hobby", "reading"]);
-      db.assert(["1", "hobby", "swimming"]);
+      db.assert([
+        ["1", "name", "Alice"],
+        ["1", "age", 30],
+        ["2", "name", "Bob"],
+        ["1", "hobby", "reading"],
+        ["1", "hobby", "swimming"],
+      ]);
 
       // Retract some triples
-      db.retract(["1", "age", 30]);
-      db.retract(["1", "hobby", "reading"]);
+      db.retract([
+        ["1", "age", 30],
+        ["1", "hobby", "reading"],
+      ]);
 
       const expectedAfterRetract = [
         ["1", "name", "Alice"],
@@ -73,7 +83,7 @@ describe("DB", () => {
       ];
 
       // Test duplicate assert doesn't add
-      db.assert(["1", "name", "Alice"]);
+      db.assert([["1", "name", "Alice"]]);
 
       expect(db.triples()).toEqual(
         expect.arrayContaining(expectedAfterRetract)
@@ -83,15 +93,19 @@ describe("DB", () => {
 
     it("should not change state when retracting non-existent triples", () => {
       // Setup initial state
-      db.assert(["1", "name", "Alice"]);
-      db.assert(["1", "age", 30]);
-      db.assert(["2", "name", "Bob"]);
-      db.assert(["1", "hobby", "reading"]);
-      db.assert(["1", "hobby", "swimming"]);
+      db.assert([
+        ["1", "name", "Alice"],
+        ["1", "age", 30],
+        ["2", "name", "Bob"],
+        ["1", "hobby", "reading"],
+        ["1", "hobby", "swimming"],
+      ]);
 
       // Retract some triples
-      db.retract(["1", "age", 30]);
-      db.retract(["1", "hobby", "reading"]);
+      db.retract([
+        ["1", "age", 30],
+        ["1", "hobby", "reading"],
+      ]);
 
       const expectedAfterRetract = [
         ["1", "name", "Alice"],
@@ -100,7 +114,7 @@ describe("DB", () => {
       ];
 
       // Test retract non-existent
-      db.retract(["999", "name", "NonExistent"]);
+      db.retract([["999", "name", "NonExistent"]]);
 
       expect(db.triples()).toEqual(
         expect.arrayContaining(expectedAfterRetract)
@@ -115,14 +129,14 @@ describe("DB", () => {
     });
 
     it("should handle retracting from empty database", () => {
-      db.retract(["1", "name", "Alice"]);
+      db.retract([["1", "name", "Alice"]]);
       expect(db.triples()).toEqual([]);
     });
 
     it("should handle multiple retracts of the same triple", () => {
-      db.assert(["1", "name", "Alice"]);
-      db.retract(["1", "name", "Alice"]);
-      db.retract(["1", "name", "Alice"]); // Retract again
+      db.assert([["1", "name", "Alice"]]);
+      db.retract([["1", "name", "Alice"]]);
+      db.retract([["1", "name", "Alice"]]); // Retract again
       expect(db.triples()).toEqual([]);
     });
   });
@@ -130,15 +144,17 @@ describe("DB", () => {
   describe("query", () => {
     beforeEach(() => {
       // Setup test data
-      db.assert(["1", "name", "Alice"]);
-      db.assert(["1", "age", 30]);
-      db.assert(["2", "name", "Bob"]);
-      db.assert(["2", "age", 25]);
-      db.assert(["3", "name", "Charlie"]);
-      db.assert(["3", "age", 35]);
-      db.assert(["1", "hobby", "reading"]);
-      db.assert(["2", "hobby", "swimming"]);
-      db.assert(["3", "hobby", "reading"]);
+      db.assert([
+        ["1", "name", "Alice"],
+        ["1", "age", 30],
+        ["2", "name", "Bob"],
+        ["2", "age", 25],
+        ["3", "name", "Charlie"],
+        ["3", "age", 35],
+        ["1", "hobby", "reading"],
+        ["2", "hobby", "swimming"],
+        ["3", "hobby", "reading"],
+      ]);
     });
 
     it("should query with exact matches", () => {
@@ -238,7 +254,7 @@ describe("DB", () => {
       expect(results).toEqual([{ id: "1" }]);
 
       // Retract the data
-      db.retract(["1", "name", "Alice"]);
+      db.retract([["1", "name", "Alice"]]);
 
       // Query again - should return no results
       results = db.query([["?id", "name", "Alice"]]);
@@ -263,19 +279,21 @@ describe("DB", () => {
   describe("rules", () => {
     beforeEach(() => {
       // Setup test data
-      db.assert(["1", "name", "Alice"]);
-      db.assert(["1", "age", 30]);
-      db.assert(["2", "name", "Bob"]);
-      db.assert(["2", "age", 25]);
-      db.assert(["3", "name", "Charlie"]);
-      db.assert(["3", "age", 35]);
+      db.assert([
+        ["1", "name", "Alice"],
+        ["1", "age", 30],
+        ["2", "name", "Bob"],
+        ["2", "age", 25],
+        ["3", "name", "Charlie"],
+        ["3", "age", 35],
+      ]);
     });
 
     it("should apply simple rules when conditions are met", () => {
       // Define a rule: if someone is over 30, they are an adult
       db.when([["?id", "age", "?age"]], (context) => {
         if (context && context.age > 30) {
-          db.assert([context.id, "status", "adult"]);
+          db.assert([[context.id, "status", "adult"]]);
         }
       });
 
@@ -292,7 +310,7 @@ describe("DB", () => {
         ],
         (context) => {
           if (context && context.age > 25) {
-            db.assert([context.id, "eligible", true]);
+            db.assert([[context.id, "eligible", true]]);
           }
         }
       );
@@ -308,7 +326,7 @@ describe("DB", () => {
       // Define a rule: if someone is over 40, they are senior
       db.when([["?id", "age", "?age"]], (context) => {
         if (context && context.age > 40) {
-          db.assert([context.id, "status", "senior"]);
+          db.assert([[context.id, "status", "senior"]]);
         }
       });
 
@@ -320,7 +338,7 @@ describe("DB", () => {
       // Define a rule: if someone is over 30, they are an adult
       db.when([["?id", "age", "?age"]], (context) => {
         if (context.age > 30) {
-          db.assert([context.id, "status", "adult"]);
+          db.assert([[context.id, "status", "adult"]]);
         }
       });
 
@@ -329,8 +347,10 @@ describe("DB", () => {
       expect(results).toEqual([{ id: "3" }]);
 
       // Add a new person over 30
-      db.assert(["4", "name", "David"]);
-      db.assert(["4", "age", 45]);
+      db.assert([
+        ["4", "name", "David"],
+        ["4", "age", 45],
+      ]);
 
       // Now David should also be marked as adult
       results = db.query([["?id", "status", "adult"]]);
@@ -344,9 +364,11 @@ describe("DB", () => {
       // Define a rule that adds multiple facts
       db.when([["?id", "age", "?age"]], (context) => {
         if (context.age > 30) {
-          db.assert([context.id, "status", "adult"]);
-          db.assert([context.id, "canVote", true]);
-          db.assert([context.id, "seniorDiscount", false]);
+          db.assert([
+            [context.id, "status", "adult"],
+            [context.id, "canVote", true],
+            [context.id, "seniorDiscount", false],
+          ]);
         }
       });
 
@@ -364,14 +386,14 @@ describe("DB", () => {
       // Rule 1: Over 30 is adult
       db.when([["?id", "age", "?age"]], (context) => {
         if (context.age > 30) {
-          db.assert([context.id, "status", "adult"]);
+          db.assert([[context.id, "status", "adult"]]);
         }
       });
 
       // Rule 2: Adults can vote
       db.when([["?id", "status", "adult"]], (context) => {
         if (context) {
-          db.assert([context.id, "canVote", true]);
+          db.assert([[context.id, "canVote", true]]);
         }
       });
 
@@ -383,21 +405,21 @@ describe("DB", () => {
       // Rule 1: Over 30 is adult
       db.when([["?id", "age", "?age"]], (context) => {
         if (context && context.age > 30) {
-          db.assert([context.id, "status", "adult"]);
+          db.assert([[context.id, "status", "adult"]]);
         }
       });
 
       // Rule 2: Adults are eligible
       db.when([["?id", "status", "adult"]], (context) => {
         if (context) {
-          db.assert([context.id, "eligible", true]);
+          db.assert([[context.id, "eligible", true]]);
         }
       });
 
       // Rule 3: Eligible people can apply
       db.when([["?id", "eligible", true]], (context) => {
         if (context) {
-          db.assert([context.id, "canApply", true]);
+          db.assert([[context.id, "canApply", true]]);
         }
       });
 
@@ -407,9 +429,11 @@ describe("DB", () => {
 
     it("should handle rules with complex conditions", () => {
       // Add some additional data
-      db.assert(["1", "city", "New York"]);
-      db.assert(["2", "city", "Boston"]);
-      db.assert(["3", "city", "New York"]);
+      db.assert([
+        ["1", "city", "New York"],
+        ["2", "city", "Boston"],
+        ["3", "city", "New York"],
+      ]);
 
       // Rule: People over 30 in New York get a metro card
       db.when(
@@ -419,7 +443,7 @@ describe("DB", () => {
         ],
         (context) => {
           if (context.age > 30) {
-            db.assert([context.id, "metroCard", true]);
+            db.assert([[context.id, "metroCard", true]]);
           }
         }
       );
@@ -430,9 +454,11 @@ describe("DB", () => {
 
     it("should handle rules that depend on variables from multiple patterns", () => {
       // Add some additional data
-      db.assert(["1", "salary", 50000]);
-      db.assert(["2", "salary", 60000]);
-      db.assert(["3", "salary", 70000]);
+      db.assert([
+        ["1", "salary", 50000],
+        ["2", "salary", 60000],
+        ["3", "salary", 70000],
+      ]);
 
       // Rule: People over 30 with salary > 60000 are high earners
       db.when(
@@ -442,7 +468,7 @@ describe("DB", () => {
         ],
         (context) => {
           if (context.age > 30 && context.salary > 60000) {
-            db.assert([context.id, "highEarner", true]);
+            db.assert([[context.id, "highEarner", true]]);
           }
         }
       );
@@ -453,13 +479,15 @@ describe("DB", () => {
 
     it("should handle rules that are added after data exists", () => {
       // Add data first
-      db.assert(["4", "name", "David"]);
-      db.assert(["4", "age", 45]);
+      db.assert([
+        ["4", "name", "David"],
+        ["4", "age", 45],
+      ]);
 
       // Then add rule
       db.when([["?id", "age", "?age"]], (context) => {
         if (context.age > 40) {
-          db.assert([context.id, "status", "senior"]);
+          db.assert([[context.id, "status", "senior"]]);
         }
       });
 
@@ -476,7 +504,7 @@ describe("DB", () => {
         ],
         (context) => {
           if (context.age > 30 && context.name.startsWith("C")) {
-            db.assert([context.id, "special", true]);
+            db.assert([[context.id, "special", true]]);
           }
         }
       );
@@ -495,7 +523,7 @@ describe("DB", () => {
           (result) => result.id === context.id
         );
         if (!alreadyExists) {
-          db.assert([context.id, "hasName", true]);
+          db.assert([[context.id, "hasName", true]]);
         }
       });
 
@@ -508,7 +536,7 @@ describe("DB", () => {
       db.when([["?id", "age", "?age"]], (context) => {
         if (context.age > 30) {
           expect(() => {
-            db.retract([context.id, "name", "Charlie"]);
+            db.retract([[context.id, "name", "Charlie"]]);
           }).toThrow("Cannot retract facts in when block");
         }
       });

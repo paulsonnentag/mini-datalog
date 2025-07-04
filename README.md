@@ -1,4 +1,4 @@
 - [x] add rules
+- [x] batch asserts / retract
 - [ ] support async rules
-- [ ] add transactions
 - [ ] add typescript support
