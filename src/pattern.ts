@@ -30,20 +30,22 @@ export const matchPattern = (
   pattern: Pattern,
   triple: Triple,
   context: Context = {}
-): Context => {
+): Context | null => {
   const [patternSubject, patternPredicate, patternObject] = pattern;
   const [tripleSubject, triplePredicate, tripleObject] = triple;
 
-  context = matchPart(patternSubject, tripleSubject, context);
-  if (!context) return null;
+  let newContext: Context | null = context;
 
-  context = matchPart(patternPredicate, triplePredicate, context);
-  if (!context) return null;
+  newContext = matchPart(patternSubject, tripleSubject, newContext);
+  if (!newContext) return null;
 
-  context = matchPart(patternObject, tripleObject, context);
-  if (!context) return null;
+  newContext = matchPart(patternPredicate, triplePredicate, newContext);
+  if (!newContext) return null;
 
-  return context;
+  newContext = matchPart(patternObject, tripleObject, newContext);
+  if (!newContext) return null;
+
+  return newContext;
 };
 
 const isVariable = (part: any): part is Variable =>
@@ -53,7 +55,7 @@ const matchPart = (
   patternPart: Variable | Id | string | any,
   triplePart: any,
   context: Context
-): Context => {
+): Context | null => {
   if (!context) {
     return null;
   }
@@ -69,7 +71,7 @@ const matchVariable = (
   variable: Variable,
   triplePart: any,
   context: Context
-): Context => {
+): Context | null => {
   const variableName = variable.slice(1);
 
   if (context && context.hasOwnProperty(variableName)) {
