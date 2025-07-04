@@ -121,6 +121,49 @@ describe("DB", () => {
       );
       expect(db.triples()).toHaveLength(expectedAfterRetract.length);
     });
+
+    it("should return a retract function from assert that retracts only the effectively asserted claims", () => {
+      // Initial state
+      db.assert([
+        ["1", "name", "Alice"],
+        ["1", "age", 30],
+      ]);
+
+      // Assert new triples and get the retract function
+      const retractFn = db.assert([
+        ["2", "name", "Bob"],
+        ["2", "age", 25],
+        ["1", "name", "Alice"], // This is a duplicate, should not be retracted
+        ["3", "name", "Charlie"],
+      ]);
+
+      // Verify the triples were added
+      const expectedAfterAssert = [
+        ["1", "name", "Alice"],
+        ["1", "age", 30],
+        ["2", "name", "Bob"],
+        ["2", "age", 25],
+        ["3", "name", "Charlie"],
+      ];
+
+      expect(db.triples()).toEqual(expect.arrayContaining(expectedAfterAssert));
+      expect(db.triples()).toHaveLength(expectedAfterAssert.length);
+
+      // Call the retract function
+      retractFn();
+
+      // Verify only the effectively asserted triples were retracted
+      // (Bob, Charlie, and their attributes, but not Alice's duplicate name)
+      const expectedAfterRetract = [
+        ["1", "name", "Alice"],
+        ["1", "age", 30],
+      ];
+
+      expect(db.triples()).toEqual(
+        expect.arrayContaining(expectedAfterRetract)
+      );
+      expect(db.triples()).toHaveLength(expectedAfterRetract.length);
+    });
   });
 
   describe("edge cases", () => {
