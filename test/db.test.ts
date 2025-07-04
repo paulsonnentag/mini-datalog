@@ -259,4 +259,259 @@ describe("DB", () => {
       ]);
     });
   });
+
+  describe("rules", () => {
+    beforeEach(() => {
+      // Setup test data
+      db.assert(["1", "name", "Alice"]);
+      db.assert(["1", "age", 30]);
+      db.assert(["2", "name", "Bob"]);
+      db.assert(["2", "age", 25]);
+      db.assert(["3", "name", "Charlie"]);
+      db.assert(["3", "age", 35]);
+    });
+
+    it("should apply simple rules when conditions are met", () => {
+      // Define a rule: if someone is over 30, they are an adult
+      db.when([["?id", "age", "?age"]], (context) => {
+        if (context && context.age > 30) {
+          db.assert([context.id, "status", "adult"]);
+        }
+      });
+
+      const results = db.query([["?id", "status", "adult"]]);
+      expect(results).toEqual([{ id: "3" }]); // Charlie is 35
+    });
+
+    it("should apply rules with multiple conditions", () => {
+      // Define a rule: if someone is over 25 and has a name, they are eligible
+      db.when(
+        [
+          ["?id", "age", "?age"],
+          ["?id", "name", "?name"],
+        ],
+        (context) => {
+          if (context && context.age > 25) {
+            db.assert([context.id, "eligible", true]);
+          }
+        }
+      );
+
+      const results = db.query([["?id", "eligible", true]]);
+      expect(results).toEqual([
+        { id: "1" }, // Alice is 30
+        { id: "3" }, // Charlie is 35
+      ]);
+    });
+
+    it("should not apply rules when conditions are not met", () => {
+      // Define a rule: if someone is over 40, they are senior
+      db.when([["?id", "age", "?age"]], (context) => {
+        if (context && context.age > 40) {
+          db.assert([context.id, "status", "senior"]);
+        }
+      });
+
+      const results = db.query([["?id", "status", "senior"]]);
+      expect(results).toEqual([]); // No one is over 40
+    });
+
+    it("should apply rules when new facts are added", () => {
+      // Define a rule: if someone is over 30, they are an adult
+      db.when([["?id", "age", "?age"]], (context) => {
+        if (context.age > 30) {
+          db.assert([context.id, "status", "adult"]);
+        }
+      });
+
+      // Initially only Charlie should be adult
+      let results = db.query([["?id", "status", "adult"]]);
+      expect(results).toEqual([{ id: "3" }]);
+
+      // Add a new person over 30
+      db.assert(["4", "name", "David"]);
+      db.assert(["4", "age", 45]);
+
+      // Now David should also be marked as adult
+      results = db.query([["?id", "status", "adult"]]);
+      expect(results).toEqual([
+        { id: "3" }, // Charlie
+        { id: "4" }, // David
+      ]);
+    });
+
+    it("should handle rules that add multiple facts", () => {
+      // Define a rule that adds multiple facts
+      db.when([["?id", "age", "?age"]], (context) => {
+        if (context.age > 30) {
+          db.assert([context.id, "status", "adult"]);
+          db.assert([context.id, "canVote", true]);
+          db.assert([context.id, "seniorDiscount", false]);
+        }
+      });
+
+      const results = db.query([["?id", "status", "adult"]]);
+      expect(results).toEqual([{ id: "3" }]);
+
+      const voteResults = db.query([["?id", "canVote", true]]);
+      expect(voteResults).toEqual([{ id: "3" }]);
+
+      const discountResults = db.query([["?id", "seniorDiscount", false]]);
+      expect(discountResults).toEqual([{ id: "3" }]);
+    });
+
+    it("should handle multiple rules", () => {
+      // Rule 1: Over 30 is adult
+      db.when([["?id", "age", "?age"]], (context) => {
+        if (context.age > 30) {
+          db.assert([context.id, "status", "adult"]);
+        }
+      });
+
+      // Rule 2: Adults can vote
+      db.when([["?id", "status", "adult"]], (context) => {
+        if (context) {
+          db.assert([context.id, "canVote", true]);
+        }
+      });
+
+      const results = db.query([["?id", "canVote", true]]);
+      expect(results).toEqual([{ id: "3" }]); // Charlie is adult and can vote
+    });
+
+    it("should handle chained rules", () => {
+      // Rule 1: Over 30 is adult
+      db.when([["?id", "age", "?age"]], (context) => {
+        if (context && context.age > 30) {
+          db.assert([context.id, "status", "adult"]);
+        }
+      });
+
+      // Rule 2: Adults are eligible
+      db.when([["?id", "status", "adult"]], (context) => {
+        if (context) {
+          db.assert([context.id, "eligible", true]);
+        }
+      });
+
+      // Rule 3: Eligible people can apply
+      db.when([["?id", "eligible", true]], (context) => {
+        if (context) {
+          db.assert([context.id, "canApply", true]);
+        }
+      });
+
+      const results = db.query([["?id", "canApply", true]]);
+      expect(results).toEqual([{ id: "3" }]); // Charlie: 35 -> adult -> eligible -> canApply
+    });
+
+    it("should handle rules with complex conditions", () => {
+      // Add some additional data
+      db.assert(["1", "city", "New York"]);
+      db.assert(["2", "city", "Boston"]);
+      db.assert(["3", "city", "New York"]);
+
+      // Rule: People over 30 in New York get a metro card
+      db.when(
+        [
+          ["?id", "age", "?age"],
+          ["?id", "city", "New York"],
+        ],
+        (context) => {
+          if (context.age > 30) {
+            db.assert([context.id, "metroCard", true]);
+          }
+        }
+      );
+
+      const results = db.query([["?id", "metroCard", true]]);
+      expect(results).toEqual([{ id: "3" }]); // Only Charlie is over 30 and in NY
+    });
+
+    it("should handle rules that depend on variables from multiple patterns", () => {
+      // Add some additional data
+      db.assert(["1", "salary", 50000]);
+      db.assert(["2", "salary", 60000]);
+      db.assert(["3", "salary", 70000]);
+
+      // Rule: People over 30 with salary > 60000 are high earners
+      db.when(
+        [
+          ["?id", "age", "?age"],
+          ["?id", "salary", "?salary"],
+        ],
+        (context) => {
+          if (context.age > 30 && context.salary > 60000) {
+            db.assert([context.id, "highEarner", true]);
+          }
+        }
+      );
+
+      const results = db.query([["?id", "highEarner", true]]);
+      expect(results).toEqual([{ id: "3" }]); // Charlie: 35 years, 70000 salary
+    });
+
+    it("should handle rules that are added after data exists", () => {
+      // Add data first
+      db.assert(["4", "name", "David"]);
+      db.assert(["4", "age", 45]);
+
+      // Then add rule
+      db.when([["?id", "age", "?age"]], (context) => {
+        if (context.age > 40) {
+          db.assert([context.id, "status", "senior"]);
+        }
+      });
+
+      const results = db.query([["?id", "status", "senior"]]);
+      expect(results).toEqual([{ id: "4" }]); // David should be marked as senior
+    });
+
+    it("should handle rules that use bound variables in conditions", () => {
+      // Rule: If someone is over 30 and their name starts with 'C', they are special
+      db.when(
+        [
+          ["?id", "age", "?age"],
+          ["?id", "name", "?name"],
+        ],
+        (context) => {
+          if (context.age > 30 && context.name.startsWith("C")) {
+            db.assert([context.id, "special", true]);
+          }
+        }
+      );
+
+      const results = db.query([["?id", "special", true]]);
+      expect(results).toEqual([{ id: "3" }]); // Charlie: 35 years, name starts with 'C'
+    });
+
+    it("should prevent infinite loops in rule evaluation", () => {
+      // This rule could potentially cause infinite loops if not handled properly
+      // It should only add the fact once per entity
+      db.when([["?id", "name", "?name"]], (context) => {
+        // Only add if not already present
+        const existing = db.query([["?id", "hasName", true]]);
+        const alreadyExists = existing.some(
+          (result) => result.id === context.id
+        );
+        if (!alreadyExists) {
+          db.assert([context.id, "hasName", true]);
+        }
+      });
+
+      const results = db.query([["?id", "hasName", true]]);
+      expect(results).toEqual([{ id: "1" }, { id: "2" }, { id: "3" }]);
+    });
+
+    it("should handle rules that retract facts (should throw error)", () => {
+      // Rules should not be able to retract facts
+      db.when([["?id", "age", "?age"]], (context) => {
+        if (context.age > 30) {
+          expect(() => {
+            db.retract([context.id, "name", "Charlie"]);
+          }).toThrow("Cannot retract facts in when block");
+        }
+      });
+    });
+  });
 });

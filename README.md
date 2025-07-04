@@ -1,4 +1,4 @@
-- [ ] add rules
+- [x] add rules
 - [ ] support async rules
 - [ ] add transactions
 - [ ] add typescript support

@@ -4,12 +4,11 @@ export type Id = string;
 
 export type Pattern = [Variable | Id, Variable | string, any];
 
-export type Context = Record<string, any> | null;
+export type Context = Record<string, any>;
 
 export const queryPatterns = (
   patterns: Pattern[],
-  triples: Triple[],
-  context: Context = {}
+  triples: Triple[]
 ): Context[] => {
   return patterns.reduce(
     (contexts: Context[], pattern) =>
