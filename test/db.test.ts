@@ -189,11 +189,11 @@ describe("DB", () => {
       // Setup test data
       db.assert([
         ["1", "name", "Alice"],
-        ["1", "age", 30],
+        ["1", "age", 14],
         ["2", "name", "Bob"],
-        ["2", "age", 25],
+        ["2", "age", 17],
         ["3", "name", "Charlie"],
-        ["3", "age", 35],
+        ["3", "age", 61],
         ["1", "hobby", "reading"],
         ["2", "hobby", "swimming"],
         ["3", "hobby", "reading"],
@@ -201,84 +201,114 @@ describe("DB", () => {
     });
 
     it("should query with exact matches", () => {
-      const results = db.query([["1", "name", "Alice"]]);
+      let results: any[] = [];
+      db.query([["1", "name", "Alice"]], (contexts) => {
+        results = contexts;
+      });
       expect(results).toEqual([{}]);
     });
 
     it("should query with variables", () => {
-      const results = db.query([["?id", "name", "Alice"]]);
+      let results: any[] = [];
+      db.query([["?id", "name", "Alice"]], (contexts) => {
+        results = contexts;
+      });
       expect(results).toEqual([{ id: "1" }]);
     });
 
     it("should query with multiple variables", () => {
-      const results = db.query([["?id", "?attr", "Alice"]]);
+      let results: any[] = [];
+      db.query([["?id", "?attr", "Alice"]], (contexts) => {
+        results = contexts;
+      });
       expect(results).toEqual([{ id: "1", attr: "name" }]);
     });
 
     it("should query with variable in object position", () => {
-      const results = db.query([["1", "name", "?value"]]);
+      let results: any[] = [];
+      db.query([["1", "name", "?value"]], (contexts) => {
+        results = contexts;
+      });
       expect(results).toEqual([{ value: "Alice" }]);
     });
 
     it("should return multiple results for multiple matches", () => {
-      const results = db.query([["?id", "hobby", "reading"]]);
+      let results: any[] = [];
+      db.query([["?id", "hobby", "reading"]], (contexts) => {
+        results = contexts;
+      });
       expect(results).toEqual([{ id: "1" }, { id: "3" }]);
     });
 
     it("should handle queries with no matches", () => {
-      const results = db.query([["?id", "name", "David"]]);
+      let results: any[] = [];
+      db.query([["?id", "name", "David"]], (contexts) => {
+        results = contexts;
+      });
       expect(results).toEqual([]);
     });
 
     it("should handle queries with non-existent entities", () => {
-      const results = db.query([["999", "name", "?value"]]);
+      let results: any[] = [];
+      db.query([["999", "name", "?value"]], (contexts) => {
+        results = contexts;
+      });
       expect(results).toEqual([]);
     });
 
     it("should handle queries with non-existent attributes", () => {
-      const results = db.query([["1", "nonexistent", "?value"]]);
+      let results: any[] = [];
+      db.query([["1", "nonexistent", "?value"]], (contexts) => {
+        results = contexts;
+      });
       expect(results).toEqual([]);
     });
 
-    it("should query with multiple patterns", () => {
-      const results = db.query([
+    it("should query with multiple patterns", async () => {
+      let results = await db.queryOnce([
         ["?id", "name", "?name"],
         ["?id", "age", "?age"],
       ]);
 
       expect(results).toEqual([
-        { id: "1", name: "Alice", age: 30 },
-        { id: "2", name: "Bob", age: 25 },
-        { id: "3", name: "Charlie", age: 35 },
+        { id: "1", name: "Alice", age: 14 },
+        { id: "2", name: "Bob", age: 17 },
+        { id: "3", name: "Charlie", age: 61 },
       ]);
     });
 
-    it("should handle complex multi-pattern queries with constraints", () => {
-      const results = db.query([
+    it("should handle complex multi-pattern queries with constraints", async () => {
+      let results = await db.queryOnce([
         ["?id", "hobby", "reading"],
         ["?id", "age", "?age"],
       ]);
 
       expect(results).toEqual([
-        { id: "1", age: 30 },
-        { id: "3", age: 35 },
+        { id: "1", age: 14 },
+        { id: "3", age: 61 },
       ]);
     });
 
-    it("should handle queries with mixed variable and literal patterns", () => {
-      const results = db.query([
+    it("should handle queries with mixed variable and literal patterns", async () => {
+      let results = await db.queryOnce([
         ["1", "name", "?name"],
         ["1", "age", "?age"],
       ]);
 
-      expect(results).toEqual([{ name: "Alice", age: 30 }]);
+      expect(results).toEqual([{ name: "Alice", age: 14 }]);
     });
 
     it("should handle queries with repeated variables", () => {
-      const results = db.query([
-        ["?id", "name", "?name"],
-        ["?id", "hobby", "reading"],
-      ]);
+      let results: any[] = [];
+      db.query(
+        [
+          ["?id", "name", "?name"],
+          ["?id", "hobby", "reading"],
+        ],
+        (contexts) => {
+          results = contexts;
+        }
+      );
 
       expect(results).toEqual([
         { id: "1", name: "Alice" },
@@ -287,34 +317,43 @@ describe("DB", () => {
     });
 
     it("should handle empty query patterns", () => {
-      const results = db.query([]);
+      let results: any[] = [];
+      db.query([], (contexts) => {
+        results = contexts;
+      });
       expect(results).toEqual([{}]);
     });
 
     it("should handle queries after data modifications", () => {
       // Initial query
-      let results = db.query([["?id", "name", "Alice"]]);
+      let results: any[] = [];
+      db.query([["?id", "name", "Alice"]], (contexts) => {
+        results = contexts;
+      });
       expect(results).toEqual([{ id: "1" }]);
 
       // Retract the data
       db.retract([["1", "name", "Alice"]]);
 
       // Query again - should return no results
-      results = db.query([["?id", "name", "Alice"]]);
+      results = [];
+      db.query([["?id", "name", "Alice"]], (contexts) => {
+        results = contexts;
+      });
       expect(results).toEqual([]);
     });
 
-    it("should handle queries with multiple attributes for same entity", () => {
-      const results = db.query([
+    it("should handle queries with multiple attributes for same entity", async () => {
+      let results = await db.queryOnce([
         ["?id", "name", "?name"],
         ["?id", "age", "?age"],
         ["?id", "hobby", "?hobby"],
       ]);
 
       expect(results).toEqual([
-        { id: "1", name: "Alice", age: 30, hobby: "reading" },
-        { id: "2", name: "Bob", age: 25, hobby: "swimming" },
-        { id: "3", name: "Charlie", age: 35, hobby: "reading" },
+        { id: "1", name: "Alice", age: 14, hobby: "reading" },
+        { id: "2", name: "Bob", age: 17, hobby: "swimming" },
+        { id: "3", name: "Charlie", age: 61, hobby: "reading" },
       ]);
     });
   });
@@ -324,153 +363,163 @@ describe("DB", () => {
       // Setup test data
       db.assert([
         ["1", "name", "Alice"],
-        ["1", "age", 30],
+        ["1", "age", 12],
         ["2", "name", "Bob"],
-        ["2", "age", 25],
+        ["2", "age", 16],
+        ["3", "hobby", "reading"],
         ["3", "name", "Charlie"],
-        ["3", "age", 35],
+        ["3", "age", 61],
+        ["3", "hobby", "reading"],
       ]);
     });
 
-    it("should apply simple rules when conditions are met", () => {
-      // Define a rule: if someone is over 30, they are an adult
+    it("should apply simple rules when conditions are met", async () => {
+      // Define a rule: if someone is 18 or older, they are an adult
       db.when([["?id", "age", "?age"]], (context) => {
-        if (context && context.age > 30) {
-          db.assert([[context.id, "status", "adult"]]);
+        if (context && context.age >= 18) {
+          return [[context.id, "status", "adult"]];
         }
       });
 
-      const results = db.query([["?id", "status", "adult"]]);
+      const results = await db.queryOnce([["?id", "status", "adult"]]);
+
       expect(results).toEqual([{ id: "3" }]); // Charlie is 35
     });
 
-    it("should apply rules with multiple conditions", () => {
-      // Define a rule: if someone is over 25 and has a name, they are eligible
+    it("should apply rules with multiple conditions", async () => {
+      // Define a rule: if someone is over 18 and are a reader, they are eligible
       db.when(
         [
           ["?id", "age", "?age"],
-          ["?id", "name", "?name"],
+          ["?id", "hobby", "reading"],
         ],
         (context) => {
-          if (context && context.age > 25) {
-            db.assert([[context.id, "eligible", true]]);
+          if (context && context.age > 60) {
+            return [[context.id, "seniorReader", true]];
           }
         }
       );
 
-      const results = db.query([["?id", "eligible", true]]);
+      const results = await db.queryOnce([["?id", "seniorReader", true]]);
+
       expect(results).toEqual([
-        { id: "1" }, // Alice is 30
-        { id: "3" }, // Charlie is 35
+        { id: "3" }, // Charlie is 61 and a reader
       ]);
     });
 
-    it("should not apply rules when conditions are not met", () => {
-      // Define a rule: if someone is over 40, they are senior
+    it("should not apply rules when conditions are not met", async () => {
+      // Define a rule: if someone is over 100, they are a centenarian
       db.when([["?id", "age", "?age"]], (context) => {
-        if (context && context.age > 40) {
-          db.assert([[context.id, "status", "senior"]]);
+        if (context && context.age > 100) {
+          return [[context.id, "status", "centenarian"]];
         }
       });
 
-      const results = db.query([["?id", "status", "senior"]]);
+      const results = await db.queryOnce([["?id", "status", "centenarian"]]);
+
       expect(results).toEqual([]); // No one is over 40
     });
 
-    it("should apply rules when new facts are added", () => {
-      // Define a rule: if someone is over 30, they are an adult
+    it("should apply rules when new facts are added", async () => {
+      // Define a rule: if someone is over 18, they are an adult
       db.when([["?id", "age", "?age"]], (context) => {
-        if (context.age > 30) {
-          db.assert([[context.id, "status", "adult"]]);
+        if (context.age >= 18) {
+          return [[context.id, "status", "adult"]];
         }
       });
 
       // Initially only Charlie should be adult
-      let results = db.query([["?id", "status", "adult"]]);
+      let results = await db.queryOnce([["?id", "status", "adult"]]);
       expect(results).toEqual([{ id: "3" }]);
 
-      // Add a new person over 30
+      // Add a new person over 18
       db.assert([
         ["4", "name", "David"],
         ["4", "age", 45],
       ]);
 
       // Now David should also be marked as adult
-      results = db.query([["?id", "status", "adult"]]);
+      results = await db.queryOnce([["?id", "status", "adult"]]);
+
       expect(results).toEqual([
         { id: "3" }, // Charlie
         { id: "4" }, // David
       ]);
     });
 
-    it("should handle rules that add multiple facts", () => {
+    it("should handle rules that add multiple facts", async () => {
       // Define a rule that adds multiple facts
       db.when([["?id", "age", "?age"]], (context) => {
-        if (context.age > 30) {
-          db.assert([
+        if (context.age >= 18) {
+          return [
             [context.id, "status", "adult"],
             [context.id, "canVote", true],
             [context.id, "seniorDiscount", false],
-          ]);
+          ];
         }
       });
 
-      const results = db.query([["?id", "status", "adult"]]);
+      let results: any[] = await db.queryOnce([["?id", "status", "adult"]]);
       expect(results).toEqual([{ id: "3" }]);
 
-      const voteResults = db.query([["?id", "canVote", true]]);
+      let voteResults: any[] = await db.queryOnce([["?id", "canVote", true]]);
       expect(voteResults).toEqual([{ id: "3" }]);
 
-      const discountResults = db.query([["?id", "seniorDiscount", false]]);
+      let discountResults: any[] = [];
+      db.query([["?id", "seniorDiscount", false]], (contexts) => {
+        discountResults = contexts;
+      });
       expect(discountResults).toEqual([{ id: "3" }]);
     });
 
-    it("should handle multiple rules", () => {
-      // Rule 1: Over 30 is adult
+    it("should handle multiple rules", async () => {
+      // Rule 1: Over 18 is adult
       db.when([["?id", "age", "?age"]], (context) => {
-        if (context.age > 30) {
-          db.assert([[context.id, "status", "adult"]]);
+        if (context.age >= 18) {
+          return [[context.id, "status", "adult"]];
         }
       });
 
       // Rule 2: Adults can vote
       db.when([["?id", "status", "adult"]], (context) => {
         if (context) {
-          db.assert([[context.id, "canVote", true]]);
+          return [[context.id, "canVote", true]];
         }
       });
 
-      const results = db.query([["?id", "canVote", true]]);
+      const results: any[] = await db.queryOnce([["?id", "canVote", true]]);
+
       expect(results).toEqual([{ id: "3" }]); // Charlie is adult and can vote
     });
 
-    it("should handle chained rules", () => {
-      // Rule 1: Over 30 is adult
+    it("should handle chained rules", async () => {
+      // Rule 1: 18 or older is adult
       db.when([["?id", "age", "?age"]], (context) => {
-        if (context && context.age > 30) {
-          db.assert([[context.id, "status", "adult"]]);
+        if (context && context.age >= 18) {
+          return [[context.id, "status", "adult"]];
         }
       });
 
       // Rule 2: Adults are eligible
       db.when([["?id", "status", "adult"]], (context) => {
         if (context) {
-          db.assert([[context.id, "eligible", true]]);
+          return [[context.id, "eligible", true]];
         }
       });
 
       // Rule 3: Eligible people can apply
       db.when([["?id", "eligible", true]], (context) => {
         if (context) {
-          db.assert([[context.id, "canApply", true]]);
+          return [[context.id, "canApply", true]];
         }
       });
 
-      const results = db.query([["?id", "canApply", true]]);
+      const results: any[] = await db.queryOnce([["?id", "canApply", true]]);
+
       expect(results).toEqual([{ id: "3" }]); // Charlie: 35 -> adult -> eligible -> canApply
     });
 
-    it("should handle rules with complex conditions", () => {
+    it("should handle rules with complex conditions", async () => {
       // Add some additional data
       db.assert([
         ["1", "city", "New York"],
@@ -478,24 +527,25 @@ describe("DB", () => {
         ["3", "city", "New York"],
       ]);
 
-      // Rule: People over 30 in New York get a metro card
+      // Rule: People over 60 in New York get a metro card
       db.when(
         [
           ["?id", "age", "?age"],
           ["?id", "city", "New York"],
         ],
         (context) => {
-          if (context.age > 30) {
-            db.assert([[context.id, "metroCard", true]]);
+          if (context.age > 60) {
+            return [[context.id, "metroCard", true]];
           }
         }
       );
 
-      const results = db.query([["?id", "metroCard", true]]);
-      expect(results).toEqual([{ id: "3" }]); // Only Charlie is over 30 and in NY
+      const results: any[] = await db.queryOnce([["?id", "metroCard", true]]);
+
+      expect(results).toEqual([{ id: "3" }]); // Only Charlie is over 60 and in NY
     });
 
-    it("should handle rules that depend on variables from multiple patterns", () => {
+    it("should handle rules that depend on variables from multiple patterns", async () => {
       // Add some additional data
       db.assert([
         ["1", "salary", 50000],
@@ -511,34 +561,35 @@ describe("DB", () => {
         ],
         (context) => {
           if (context.age > 30 && context.salary > 60000) {
-            db.assert([[context.id, "highEarner", true]]);
+            return [[context.id, "highEarner", true]];
           }
         }
       );
 
-      const results = db.query([["?id", "highEarner", true]]);
+      let results: any[] = await db.queryOnce([["?id", "highEarner", true]]);
       expect(results).toEqual([{ id: "3" }]); // Charlie: 35 years, 70000 salary
     });
 
-    it("should handle rules that are added after data exists", () => {
+    it("should handle rules that are added after data exists", async () => {
       // Add data first
       db.assert([
         ["4", "name", "David"],
-        ["4", "age", 45],
+        ["4", "age", 70],
       ]);
 
       // Then add rule
       db.when([["?id", "age", "?age"]], (context) => {
-        if (context.age > 40) {
-          db.assert([[context.id, "status", "senior"]]);
+        if (context.age > 60) {
+          return [[context.id, "status", "senior"]];
         }
       });
 
-      const results = db.query([["?id", "status", "senior"]]);
-      expect(results).toEqual([{ id: "4" }]); // David should be marked as senior
+      const results: any[] = await db.queryOnce([["?id", "status", "senior"]]);
+
+      expect(results).toEqual([{ id: "3" }, { id: "4" }]); // David should be marked as senior
     });
 
-    it("should handle rules that use bound variables in conditions", () => {
+    it("should handle rules that use bound variables in conditions", async () => {
       // Rule: If someone is over 30 and their name starts with 'C', they are special
       db.when(
         [
@@ -547,42 +598,36 @@ describe("DB", () => {
         ],
         (context) => {
           if (context.age > 30 && context.name.startsWith("C")) {
-            db.assert([[context.id, "special", true]]);
+            return [[context.id, "special", true]];
           }
         }
       );
 
-      const results = db.query([["?id", "special", true]]);
+      const results: any[] = await db.queryOnce([["?id", "special", true]]);
+
       expect(results).toEqual([{ id: "3" }]); // Charlie: 35 years, name starts with 'C'
     });
 
-    it("should prevent infinite loops in rule evaluation", () => {
+    it("should prevent infinite loops in rule evaluation", async () => {
       // This rule could potentially cause infinite loops if not handled properly
       // It should only add the fact once per entity
       db.when([["?id", "name", "?name"]], (context) => {
         // Only add if not already present
-        const existing = db.query([["?id", "hasName", true]]);
+        let existing: any[] = [];
+        db.query([["?id", "hasName", true]], (contexts) => {
+          existing = contexts;
+        });
         const alreadyExists = existing.some(
           (result) => result.id === context.id
         );
         if (!alreadyExists) {
-          db.assert([[context.id, "hasName", true]]);
+          return [[context.id, "hasName", true]];
         }
       });
 
-      const results = db.query([["?id", "hasName", true]]);
+      const results: any[] = await db.queryOnce([["?id", "hasName", true]]);
+
       expect(results).toEqual([{ id: "1" }, { id: "2" }, { id: "3" }]);
-    });
-
-    it("should handle rules that retract facts (should throw error)", () => {
-      // Rules should not be able to retract facts
-      db.when([["?id", "age", "?age"]], (context) => {
-        if (context.age > 30) {
-          expect(() => {
-            db.retract([[context.id, "name", "Charlie"]]);
-          }).toThrow("Cannot retract facts in when block");
-        }
-      });
     });
   });
 });

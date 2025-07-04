@@ -1,4 +1,4 @@
 - [x] add rules
 - [x] batch asserts / retract
-- [ ] support async rules
+- [x] support async rules
 - [ ] add typescript support
