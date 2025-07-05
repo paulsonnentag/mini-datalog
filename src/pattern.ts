@@ -1,6 +1,6 @@
-export type Triple = [Id, string, any];
+import { Id, Triple } from "./db";
+
 export type Variable = `?${string}`;
-export type Id = string;
 
 export type Pattern = [Variable | Id, Variable | string, any];
 

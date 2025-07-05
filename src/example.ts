@@ -1,4 +1,4 @@
-import { Triple } from "./pattern";
+import { Triple } from "./db";
 
 export const movieTriples: Triple[] = [
   ["100", "person/name", "James Cameron"],

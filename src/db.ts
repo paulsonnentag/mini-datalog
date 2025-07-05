@@ -1,10 +1,13 @@
-import { Context, Id, Pattern, queryPatterns, Triple } from "./pattern";
+import { Context, Pattern, queryPatterns } from "./pattern";
+
+export type Triple = [Id, string, any];
+export type Id = string | number;
 
 export type TripleMap = Map<Id, Map<string, any[]>>;
 
 export type RuleCallback = (
   context: Context
-) => Promise<Triple[]> | Triple[] | void;
+) => Promise<Triple[] | undefined> | Triple[] | undefined;
 
 export type Rule = {
   patterns: Pattern[];

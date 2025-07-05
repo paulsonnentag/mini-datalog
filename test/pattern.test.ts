@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { matchPattern, Pattern, Triple } from "../src/pattern.js";
+import { matchPattern, Pattern } from "../src/pattern.js";
+import { Triple } from "../src/db.js";
 
 describe("Pattern", () => {
   it("should match exact values", () => {
