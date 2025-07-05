@@ -1,4 +1,3 @@
-import { debug } from "console";
 import { Context, Id, Pattern, queryPatterns, Triple } from "./pattern";
 
 export type TripleMap = Map<Id, Map<string, any[]>>;
@@ -117,18 +116,8 @@ export class DB {
     this.#isProcessing = true;
     this.#computed = new Map();
 
-    console.log("recompute");
-
-    let iteration = 0;
-
     do {
-      iteration++;
-
-      console.log("iteration", iteration);
-
       const triples = this.triples();
-
-      console.log("triples", triples);
 
       const computedAssertions = (
         await Promise.all(
@@ -155,7 +144,6 @@ export class DB {
 
       for (const assertion of computedAssertions) {
         if (this.#assertTriple(assertion, true)) {
-          console.log("added fact", assertion);
           hasAddedFacts = true;
         }
       }
