@@ -30,8 +30,6 @@ db.query(
     [$("id"), isSenior(true)],
   ],
   (matches) => {
-    const result = matches[0];
-
     console.log(
       "seniors",
       matches.map(({ name }) => ({ name }))
