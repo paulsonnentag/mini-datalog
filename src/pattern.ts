@@ -1,4 +1,4 @@
-export type ObjectId = string | number;
+export type ObjectId = string | number | Symbol;
 
 type FieldValue<T> = {
   field: Field<T>;
@@ -10,17 +10,31 @@ type FieldPattern<T, N extends string> = {
   variable: Variable<N>;
 };
 
-export class Field<T> {
+export class Field<_T = unknown> {
   constructor(readonly key: string) {}
 
-  of(value: T): FieldValue<T> {
+  of<T>(value: T): FieldValue<T> {
     return { field: this, value };
   }
-
-  as<V extends string>(variableName: V): FieldPattern<T, V> {
-    return { field: this, variable: new Variable(variableName) };
-  }
 }
+
+export const defineField = <T>(
+  key: string
+): {
+  (value: T): FieldValue<T>;
+  $: <N extends string>(variableName: N) => FieldPattern<T, N>;
+} => {
+  const field = new Field<T>(key);
+
+  const createField = (value: T): FieldValue<T> => field.of(value);
+
+  createField.$ = <N extends string>(variableName: N) => ({
+    field,
+    variable: new Variable(variableName),
+  });
+
+  return createField;
+};
 
 class Variable<N extends string> {
   constructor(readonly name: N) {}
@@ -30,10 +44,10 @@ export const $ = <N extends string>(name: N) => {
   return new Variable(name);
 };
 
-export type Statement = [ObjectId, FieldValue<any>];
+export type Statement<T = unknown> = [ObjectId, FieldValue<T>];
 
-type Pattern<
-  FieldType,
+export type Pattern<
+  FieldType = unknown,
   IdName extends string = never,
   FieldName extends string = never
 > =

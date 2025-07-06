@@ -1,15 +1,6 @@
-// db.ts
+import { Pattern, queryPatterns, Statement, ObjectId, Field } from "./pattern";
 
-import {
-  Pattern,
-  queryPatterns,
-  Statement,
-  Field,
-  ObjectId,
-  $,
-} from "./pattern";
-
-export type StatementMap = Map<ObjectId, Map<string, any[]>>;
+export type StatementMap = Map<ObjectId, Map<Field, any[]>>;
 
 // Typed callback for rules
 export type RuleCallback<P extends readonly Pattern<any, any, any>[]> = (
@@ -74,10 +65,10 @@ export class DB {
     const entity = state.get(id)!;
 
     // Get or create the array for this field
-    if (!entity.has(field.key)) {
-      entity.set(field.key, []);
+    if (!entity.has(field)) {
+      entity.set(field, []);
     }
-    const values = entity.get(field.key)!;
+    const values = entity.get(field)!;
 
     // Add the value if it's not already there
     if (!values.includes(value)) {
@@ -105,18 +96,18 @@ export class DB {
     }
 
     const idMap = this.#base.get(id)!;
-    if (!idMap.has(field.key)) {
+    if (!idMap.has(field)) {
       return;
     }
 
-    const values = idMap.get(field.key)!;
+    const values = idMap.get(field)!;
     const index = values.indexOf(value);
     if (index !== -1) {
       values.splice(index, 1);
 
       // Remove the field map if it's empty
       if (values.length === 0) {
-        idMap.delete(field.key);
+        idMap.delete(field);
       }
 
       // Remove the ID map if it's empty
@@ -230,20 +221,16 @@ export class DB {
     const statements: Statement[] = [];
 
     for (const [id, idMap] of this.#base) {
-      for (const [fieldKey, values] of idMap) {
+      for (const [field, values] of idMap) {
         for (const value of values) {
-          // We need to reconstruct the field - this is a limitation since we only store the key
-          // In a real implementation, you might want to store the actual Field objects
-          const field = new Field(fieldKey);
           statements.push([id, field.of(value)]);
         }
       }
     }
 
     for (const [id, idMap] of this.#computed) {
-      for (const [fieldKey, values] of idMap) {
+      for (const [field, values] of idMap) {
         for (const value of values) {
-          const field = new Field(fieldKey);
           statements.push([id, field.of(value)]);
         }
       }

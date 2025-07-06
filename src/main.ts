@@ -1,25 +1,40 @@
-import { movieTriples } from "./example";
 import { DB } from "./db";
+import { defineField, $ } from "./pattern";
 
-const db = new DB(movieTriples);
+const hasName = defineField<string>("person/name");
+const hasBirthDate = defineField<string>("person/born");
+const hasAge = defineField<number>("person/age");
+const isSenior = defineField<boolean>("person/isSenior");
 
-db.when([["?id", "person/born", "?date"]], ({ date, id }) => [
-  [id, "person/age", new Date().getFullYear() - new Date(date).getFullYear()],
+const db = new DB([
+  [1, hasName("Alice")],
+  [1, hasBirthDate("1990-01-01")],
+  [2, hasName("Bob")],
+  [2, hasBirthDate("1960-01-01")],
 ]);
 
-db.when([["?id", "person/age", "?age"]], ({ id, age }) => {
-  if (age >= 60) {
-    return [[id, "person/isSenior", true]];
-  }
+db.when([[$("id"), hasBirthDate.$("date")]], ({ id, date }) => {
+  const age = new Date().getFullYear() - new Date(date).getFullYear();
+  return [[id, hasAge(age)]];
 });
+
+db.when([[$("id"), hasAge.$("age")]], ({ id, age }) => {
+  return [[id, isSenior(age >= 60)]];
+});
+
+console.log(db.statements());
 
 db.query(
   [
-    ["?id", "person/name", "?name"],
-    ["?id", "person/age", "?age"],
-    ["?id", "person/isSenior", true],
+    [$("id"), hasName.$("name")],
+    [$("id"), isSenior(true)],
   ],
-  (actors) => {
-    console.log(actors);
+  (matches) => {
+    const result = matches[0];
+
+    console.log(
+      "seniors",
+      matches.map(({ name }) => ({ name }))
+    );
   }
 );
