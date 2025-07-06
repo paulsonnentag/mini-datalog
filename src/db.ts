@@ -239,6 +239,14 @@ export class DB {
     return statements;
   }
 
+  inspect(): [ObjectId, string, any][] {
+    return this.statements().map(([id, fieldValue]) => [
+      id,
+      fieldValue.field.key,
+      fieldValue.value,
+    ]);
+  }
+
   state(): Statement[] {
     return this.statements();
   }
