@@ -1,128 +1,175 @@
-import { Field, Triple } from "./db";
+export type ObjectId = string | number;
 
-export type Id = string | number;
+type FieldValue<T> = {
+  field: Field<T>;
+  value: T;
+};
 
-export type Variable = `?${string}`;
+type FieldPattern<T, N extends string> = {
+  field: Field<T>;
+  variable: Variable<N>;
+};
 
-// Extract variable name from variable string
-type VariableName<T> = T extends `?${infer Name}` ? Name : never;
+export class Field<T> {
+  constructor(readonly key: string) {}
 
-// Single pattern: [subject, predicate, object]
-export type Pattern<S = any, P = any, O = any> = [S, P, O];
+  of(value: T): FieldValue<T> {
+    return { field: this, value };
+  }
 
-// Helper type to extract Field's generic type
-type ExtractFieldType<F> = F extends Field<infer T> ? T : never;
+  as<V extends string>(variableName: V): FieldPattern<T, V> {
+    return { field: this, variable: new Variable(variableName) };
+  }
+}
 
-// Extract variables and their types from a single pattern
-type ExtractVariables<Pat> = Pat extends Pattern<infer S, infer P, infer O>
-  ? (S extends Variable ? { [K in VariableName<S>]: Id } : {}) &
-      (P extends Variable ? { [K in VariableName<P>]: string } : {}) &
-      (O extends Variable
-        ? P extends Field<any>
-          ? { [K in VariableName<O>]: ExtractFieldType<P> }
-          : { [K in VariableName<O>]: unknown }
-        : {})
-  : {};
+class Variable<N extends string> {
+  constructor(readonly name: N) {}
+}
 
-// Merge variables from multiple patterns
-type MergeVariables<Patterns extends readonly unknown[]> =
-  Patterns extends readonly [infer First, ...infer Rest]
-    ? ExtractVariables<First> & MergeVariables<Rest>
+export const $ = <N extends string>(name: N) => {
+  return new Variable(name);
+};
+
+export type Statement = [ObjectId, FieldValue<any>];
+
+type Pattern<
+  FieldType,
+  IdName extends string = never,
+  FieldName extends string = never
+> =
+  | [ObjectId, FieldPattern<FieldType, FieldName>]
+  | [Variable<IdName>, FieldValue<FieldType>]
+  | [Variable<IdName>, FieldPattern<FieldType, FieldName>];
+
+// Type inference for extracting match results
+type ExtractMatchResult<P> = P extends [
+  ObjectId,
+  FieldPattern<infer FieldType, infer FieldName>
+]
+  ? { [K in FieldName]: FieldType }
+  : P extends [Variable<infer IdName>, FieldValue<any>]
+  ? { [K in IdName]: ObjectId }
+  : P extends [
+      Variable<infer IdName>,
+      FieldPattern<infer FieldType, infer FieldName>
+    ]
+  ? { [K in IdName]: ObjectId } & { [K in FieldName]: FieldType }
+  : never;
+
+// Union type for multiple patterns
+type ExtractMatchResults<P extends readonly Pattern<any, any, any>[]> =
+  P extends readonly [infer First, ...infer Rest]
+    ? First extends Pattern<any, any, any>
+      ? Rest extends readonly Pattern<any, any, any>[]
+        ? ExtractMatchResult<First> & ExtractMatchResults<Rest>
+        : ExtractMatchResult<First>
+      : never
     : {};
 
-// Typed Context based on patterns
-export type Context<
-  P extends readonly Pattern<any, any, any>[] = Pattern<any, any, any>[]
-> = P extends readonly Pattern<any, any, any>[]
-  ? MergeVariables<P>
-  : Record<string, any>;
+type Match<P extends readonly Pattern<any, any, any>[]> =
+  ExtractMatchResults<P>;
 
 // Updated function signatures with proper typing
 export const queryPatterns = <
   const P extends readonly Pattern<any, any, any>[]
 >(
   patterns: P,
-  triples: Triple[]
-): Context<P>[] => {
+  statements: Statement[]
+): Match<P>[] => {
   return patterns.reduce(
-    (contexts: Context<P>[], pattern) =>
+    (contexts: Match<P>[], pattern) =>
       contexts.flatMap(
-        (ctx) => queryPattern(pattern, triples, ctx) as Context<P>[]
+        (ctx) => queryPattern(pattern, statements, ctx) as Match<P>[]
       ),
-    [{}] as Context<P>[]
+    [{}] as Match<P>[]
   );
 };
 
 export const queryPattern = <const P extends Pattern<any, any, any>>(
   pattern: P,
-  triples: Triple[],
-  context: Context<[P]> = {} as Context<[P]>
-): Context<[P]>[] =>
-  triples
-    .map((triple) => matchPattern(pattern, triple, context))
-    .filter((context): context is Context<[P]> => context !== null);
+  statements: Statement[],
+  match: ExtractMatchResult<P> = {} as ExtractMatchResult<P>
+): ExtractMatchResult<P>[] =>
+  statements
+    .map((triple) => matchPattern(pattern, triple, match))
+    .filter((context): context is ExtractMatchResult<P> => context !== null);
 
 export const matchPattern = <const P extends Pattern<any, any, any>>(
   pattern: P,
-  triple: Triple,
-  context: Context<[P]> = {} as Context<[P]>
-): Context<[P]> | null => {
-  const [patternSubject, patternPredicate, patternObject] = pattern;
-  const [tripleSubject, triplePredicate, tripleObject] = triple;
+  triple: Statement,
+  match: ExtractMatchResult<P> = {} as ExtractMatchResult<P>
+): ExtractMatchResult<P> | null => {
+  const [patternSubject, patternPredicate] = pattern;
+  const [tripleSubject, tripleField] = triple;
 
-  let newContext: Context<[P]> | null = context;
+  let newMatch: ExtractMatchResult<P> | null = match;
 
-  newContext = matchPart(patternSubject, tripleSubject, newContext);
-  if (!newContext) return null;
+  // Match the subject (ID or Variable)
+  newMatch = matchObject(patternSubject, tripleSubject, newMatch);
+  if (!newMatch) return null;
 
-  newContext = matchPart(patternPredicate, triplePredicate, newContext);
-  if (!newContext) return null;
+  // Match the predicate (FieldValue or FieldPattern)
+  newMatch = matchField(patternPredicate, tripleField, newMatch);
+  if (!newMatch) return null;
 
-  newContext = matchPart(patternObject, tripleObject, newContext);
-  if (!newContext) return null;
-
-  return newContext;
+  return newMatch;
 };
 
-const isVariable = (part: any): part is Variable =>
-  typeof part === "string" && part.startsWith("?");
+const isVariable = (part: any): part is Variable<any> =>
+  part instanceof Variable;
 
-const matchPart = <T>(
-  patternPart: Variable | Id | string | any,
-  triplePart: any,
+const isFieldValue = (part: any): part is FieldValue<any> =>
+  part && typeof part === "object" && "field" in part && "value" in part;
+
+const isFieldPattern = (part: any): part is FieldPattern<any, any> =>
+  part && typeof part === "object" && "field" in part && "variable" in part;
+
+const matchObject = <T>(
+  objectPattern: ObjectId | Variable<any>,
+  objectValue: ObjectId,
   context: T
 ): T | null => {
-  if (!context) {
-    return null;
+  if (isVariable(objectPattern)) {
+    return matchVariable(objectPattern, objectValue, context);
   }
 
-  if (isVariable(patternPart)) {
-    return matchVariable(patternPart, triplePart, context);
+  return objectPattern === objectValue ? context : null;
+};
+
+const matchField = <T>(
+  fieldPattern: FieldValue<any> | FieldPattern<any, any>,
+  fieldValue: FieldValue<any>,
+  context: T
+): T | null => {
+  if (isFieldValue(fieldPattern)) {
+    // Match field and value exactly
+    return fieldPattern.field.key === fieldValue.field.key &&
+      fieldPattern.value === fieldValue.value
+      ? context
+      : null;
   }
 
-  return patternPart === triplePart ? context : null;
+  if (isFieldPattern(fieldPattern)) {
+    // Match field and bind value to variable
+    if (fieldPattern.field.key === fieldValue.field.key) {
+      return matchVariable(fieldPattern.variable, fieldValue.value, context);
+    }
+  }
+
+  return null;
 };
 
 const matchVariable = <T>(
-  variable: Variable,
-  triplePart: any,
+  variable: Variable<any>,
+  value: any,
   context: T
 ): T | null => {
-  const variableName = variable.slice(1);
+  const variableName = variable.name;
 
   if (context && (context as any).hasOwnProperty(variableName)) {
     const bound = (context as any)[variableName];
-    return matchPart(bound, triplePart, context);
+    return bound === value ? context : null;
   }
 
-  return { ...context, [variableName]: triplePart } as T;
+  return { ...context, [variableName]: value } as T;
 };
-
-const $name = new Field<string>("name");
-const $age = new Field<number>("age");
-
-// Example 1: Using a string field
-const result = matchPattern(["?person", $name, "?name"], ["1", $name, "Alice"]);
-
-// Example 2: Using a number field
-const result2 = matchPattern(["?person", $age, "?age"], ["1", $age, 10]);
