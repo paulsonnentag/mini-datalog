@@ -1,44 +1,56 @@
-import { Context, Pattern, queryPatterns } from "./pattern";
+// db.ts
 
-export type Triple = [Id, string, any];
-export type Id = string | number;
+import {
+  Pattern,
+  queryPatterns,
+  Statement,
+  Field,
+  ObjectId,
+  $,
+} from "./pattern";
 
-export type TripleMap = Map<Id, Map<string, any[]>>;
+export type StatementMap = Map<ObjectId, Map<string, any[]>>;
 
-export type RuleCallback = (
-  context: Context
-) => Promise<Triple[] | undefined> | Triple[] | undefined;
+// Typed callback for rules
+export type RuleCallback<P extends readonly Pattern<any, any, any>[]> = (
+  match: ReturnType<typeof queryPatterns<P>>[0]
+) => Promise<Statement[] | undefined> | Statement[] | undefined;
 
-export type Rule = {
-  patterns: Pattern[];
-  callback: RuleCallback;
+// Typed rule definition
+export type Rule<P extends readonly Pattern<any, any, any>[]> = {
+  patterns: P;
+  callback: RuleCallback<P>;
 };
 
-export type QueryCallback = (contexts: Context[]) => void;
+// Typed callback for queries
+export type QueryCallback<P extends readonly Pattern<any, any, any>[]> = (
+  match: ReturnType<typeof queryPatterns<P>>
+) => void;
 
-export type Query = {
-  patterns: Pattern[];
-  callback: QueryCallback;
+// Typed query definition
+export type Query<P extends readonly Pattern<any, any, any>[]> = {
+  patterns: P;
+  callback: QueryCallback<P>;
 };
 
 export class DB {
-  #base: TripleMap = new Map();
-  #computed: TripleMap = new Map();
-  #rules = new Set<Rule>();
-  #queries = new Set<Query>();
+  #base: StatementMap = new Map();
+  #computed: StatementMap = new Map();
+  #rules = new Set<Rule<any>>();
+  #queries = new Set<Query<any>>();
   #epoch = 0;
   #isProcessing = false;
 
-  constructor(triples: Triple[] = []) {
-    this.assert(triples);
+  constructor(statements: Statement[] = []) {
+    this.assert(statements);
   }
 
-  assert(triples: Triple[]): () => void {
-    const newAsserts: Triple[] = [];
+  assert(statements: Statement[]): () => void {
+    const newAsserts: Statement[] = [];
 
-    for (const triple of triples) {
-      if (this.#assertTriple(triple, false)) {
-        newAsserts.push(triple);
+    for (const statement of statements) {
+      if (this.#assertStatement(statement, false)) {
+        newAsserts.push(statement);
       }
     }
 
@@ -49,8 +61,9 @@ export class DB {
     };
   }
 
-  #assertTriple(triple: Triple, isComputed: boolean): boolean {
-    const [id, attribute, value] = triple;
+  #assertStatement(statement: Statement, isComputed: boolean): boolean {
+    const [id, fieldValue] = statement;
+    const { field, value } = fieldValue;
 
     const state = isComputed ? this.#computed : this.#base;
 
@@ -60,11 +73,11 @@ export class DB {
     }
     const entity = state.get(id)!;
 
-    // Get or create the array for this attribute
-    if (!entity.has(attribute)) {
-      entity.set(attribute, []);
+    // Get or create the array for this field
+    if (!entity.has(field.key)) {
+      entity.set(field.key, []);
     }
-    const values = entity.get(attribute)!;
+    const values = entity.get(field.key)!;
 
     // Add the value if it's not already there
     if (!values.includes(value)) {
@@ -75,34 +88,35 @@ export class DB {
     return false;
   }
 
-  retract(triples: Triple[]) {
-    for (const triple of triples) {
-      this.#retractTriple(triple);
+  retract(statements: Statement[]) {
+    for (const statement of statements) {
+      this.#retractStatement(statement);
     }
 
     this.#recompute();
   }
 
-  #retractTriple(triple: Triple) {
-    const [id, attribute, value] = triple;
+  #retractStatement(statement: Statement) {
+    const [id, fieldValue] = statement;
+    const { field, value } = fieldValue;
 
     if (!this.#base.has(id)) {
       return;
     }
 
     const idMap = this.#base.get(id)!;
-    if (!idMap.has(attribute)) {
+    if (!idMap.has(field.key)) {
       return;
     }
 
-    const values = idMap.get(attribute)!;
+    const values = idMap.get(field.key)!;
     const index = values.indexOf(value);
     if (index !== -1) {
       values.splice(index, 1);
 
-      // Remove the attribute map if it's empty
+      // Remove the field map if it's empty
       if (values.length === 0) {
-        idMap.delete(attribute);
+        idMap.delete(field.key);
       }
 
       // Remove the ID map if it's empty
@@ -120,12 +134,12 @@ export class DB {
     this.#computed = new Map();
 
     do {
-      const triples = this.triples();
+      const statements = this.statements();
 
       const computedAssertions = (
         await Promise.all(
           Array.from(this.#rules).map(async ({ patterns, callback }) => {
-            const contexts = queryPatterns(patterns, triples);
+            const contexts = queryPatterns(patterns, statements);
 
             const assertions = (
               await Promise.all(
@@ -146,7 +160,7 @@ export class DB {
       hasAddedFacts = false;
 
       for (const assertion of computedAssertions) {
-        if (this.#assertTriple(assertion, true)) {
+        if (this.#assertStatement(assertion, true)) {
           hasAddedFacts = true;
         }
       }
@@ -159,8 +173,12 @@ export class DB {
     }
   }
 
-  when(patterns: Pattern[], callback: RuleCallback) {
-    const rule: Rule = { patterns, callback };
+  // Typed when method
+  when<const P extends readonly Pattern<any, any, any>[]>(
+    patterns: P,
+    callback: RuleCallback<P>
+  ): () => void {
+    const rule: Rule<P> = { patterns, callback };
 
     this.#rules.add(rule);
     this.#recompute();
@@ -171,8 +189,11 @@ export class DB {
     };
   }
 
-  query(patterns: Pattern[], callback: QueryCallback) {
-    const query: Query = { patterns, callback };
+  query<const P extends readonly Pattern<any, any, any>[]>(
+    patterns: P,
+    callback: QueryCallback<P>
+  ): () => void {
+    const query: Query<P> = { patterns, callback };
     this.#queries.add(query);
 
     if (!this.#isProcessing) {
@@ -184,9 +205,11 @@ export class DB {
     };
   }
 
-  async queryOnce(patterns: Pattern[]): Promise<Context[]> {
+  async queryOnce<const P extends readonly Pattern<any, any, any>[]>(
+    patterns: P
+  ): Promise<ReturnType<typeof queryPatterns<P>>> {
     return new Promise((resolve) => {
-      let unsubscribe: () => void | undefined;
+      let unsubscribe: (() => void) | undefined;
 
       unsubscribe = this.query(patterns, (contexts) => {
         if (unsubscribe) {
@@ -198,34 +221,38 @@ export class DB {
     });
   }
 
-  #runQuery(query: Query) {
-    const triples = queryPatterns(query.patterns, this.triples());
-    query.callback(triples);
+  #runQuery<P extends readonly Pattern<any, any, any>[]>(query: Query<P>) {
+    const matches = queryPatterns(query.patterns, this.statements());
+    query.callback(matches);
   }
 
-  triples(): Triple[] {
-    const triples: Triple[] = [];
+  statements(): Statement[] {
+    const statements: Statement[] = [];
 
     for (const [id, idMap] of this.#base) {
-      for (const [attribute, values] of idMap) {
+      for (const [fieldKey, values] of idMap) {
         for (const value of values) {
-          triples.push([id, attribute, value]);
+          // We need to reconstruct the field - this is a limitation since we only store the key
+          // In a real implementation, you might want to store the actual Field objects
+          const field = new Field(fieldKey);
+          statements.push([id, field.of(value)]);
         }
       }
     }
 
     for (const [id, idMap] of this.#computed) {
-      for (const [attribute, values] of idMap) {
+      for (const [fieldKey, values] of idMap) {
         for (const value of values) {
-          triples.push([id, attribute, value]);
+          const field = new Field(fieldKey);
+          statements.push([id, field.of(value)]);
         }
       }
     }
 
-    return triples;
+    return statements;
   }
 
-  state(): Triple[] {
-    return this.triples();
+  state(): Statement[] {
+    return this.statements();
   }
 }
