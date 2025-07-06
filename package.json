@@ -1,8 +1,14 @@
 {
   "name": "mini-datalog",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
+  "license": "MIT",
+  "author": "Paul Sonnentag <paul.sonnentag@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/paulsonnentag/mini-datalog"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
